@@ -492,6 +492,54 @@ bandwidth/higher speed connections
   - Each may have their own routing policies
   - Internet-wide BGP routing
   - Not always the shortest path - you want to make your choices based on how much things are going to cost
+
+## Interdomain Internet Routing
+- The following are notes from a lecture by [Hari Balakrishnan & Nick Feamster](https://courses.cs.washington.edu/courses/cse551/09sp/papers/Balakrishnan_Internet_Interdomain_Routing_2005.pdf)
+- Autonomous systems
+  - In an ideal world, end-hosts would be connected to each other via a central/fault tolerant network which played together nicely
+  - In reality, various commercial entities provide internet service, and have to consider profitability when making routing (and other) decisions
+  - Tier 3 ISPs are small and local (customers are usually close geographically)
+  - Tier 2 ISPs are regional (statewide or small country)
+  - There are less than 10 Tier 1 ISPs and they constitute the truly "global" internet
+  - An Autonomous System (AS) is a collection of routers and routing tables which interact with other ASes to "exchange reachability information"
+  - ASes have IGPs (*Interior Gateway Protocols*) which determine how to handle internal traffic
+    - While EGPs are concerned with exchanging information and policy in a scalable matter, IGPs are more focused on "optimizing a path metric" and are not as concerned with scalability
+    - Distance Vectors and Link-State protocol are examples of IGPs
+- Inter-AS Relationships: Transit and Peering
+  - Peering v. Transit
+    - The primary traffic an ISP is concerned with comes from their customers - they will share all information in their routing tables with their customers and then make decisions concerning speed depending on how much the customers pays
+    - While the above is called transit, peering is when ISPs share information with other ISPs
+    - This is usually done to avoid going through a skip-level ISP which means payment as well as additional latency
+    - If two smaller ISPs set up a direct link to share traffic which passes through their neighboring communities, their customers benefit from the speedup and they benefit from not paying their backbone (tier n+1) ISP
+    - Because of this peering is often a mutual relationship, but if it becomes too asymmetrical, contracts can be worked out
+    - These agreements are behind closed door types of things and since they are between competitors, are often renegotiated
+    - Advertising routes is defined as the following: *"A route advertisement from B  to A for a destination prefix is an agreement by B that it will forward packets sent via A destined for any destination in the prefix"*
+    - One way to think about the business model of an ISP is two-pieces: an entry in their routing table and handling of packets to/from that leased IP address (the data rate of which can play a major role in deciding cost)
+  - Exploring Routes: Route Filtering
+    - ISPs don't want to be responsible for handling packets which they aren't making money off of so they need to be mindful of cost when advertising routes to neighbors
+    - I don't understand why the customer is advertising here $\rightarrow$ *"if a destination were advertised from multiple neighbors, an ISP should prefer the advertisement made from a customer over all other choices (in particular, over peers and transit providers)."*
+    - I think the above is discussing the relationship between backbone ISPs and their customers - since the customer (B) is paying the larger ISP (A), A should favor B since it is paying for the use of As network
+    - ISPs do not want to provide transit to their providers since they don't make money on it so they are more likely to advertise an external route to customer rather than peer traffic
+    - In fact, advertising a route through a provider ISP to a peer may cause a smaller ISP to send a peers traffic through the route they are paying to use
+    - The applications of BGP we have discussed so far are primarily concerned with relationships *between ISPs* but less interesting customers (such as end users) do not need such complex route management and usually have static routes along which traffic flows
+  - Importing Routes
+    - An AS needs to be thoughtful in which routes it keeps in its routing tables if it hears multiple paths to a single destination
+    - If an ISP A hears an advertisement from a peer (B) for one of As customers, A needs to keep in mind that B could route the traffic to even more ISPs creating latency, so a direct route to the customer is preferred (the rule of thumb is *customer > peer > provider*)
+- Border Gateway Protocol
+  - Design Goals
+  - The Protocol
+  - Disseminating Routes within an AS: eBGP and iBGP
+  - BGP Policy Expression: Filters and Rankings
+  - Exchanging Reachability: *NEXT HOP* Attribute
+- Failover and Scalability
+  - Multi-homing: Promise and Problems
+  - Convergence Problems
+- The following are notes from Shyam Gollakota's lecture on the topic
+  - Different ISPs may implement different policies which impacts how traffic is routed (quickest out of my network, minimum use of my resources, etc)
+  - Peering is only really set up with specific endpoints in mind - Network B will forward traffic from A only to nodes within Bs network since it is not making money on anything else
+  - Say you want to go from $AS_i \rightarrow AS_j$ and can go through paths $P_c, P_p, and P_\$$ representing client paths, peer paths, and provider paths, you are most likely to pick the client path since they are paying for your traffic
+  - ASes will advertise client routes to everyone since they are being paid for that, but keep the peer/provider routes for their clients since they don't make money off of that
+  - Peers would not advertise routes through their providers since they wouldn't make money
 # Transport Layer
 
 # Application Layer
