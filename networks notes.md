@@ -559,10 +559,26 @@ bandwidth/higher speed connections
     - Setting up iBGP topology is tricky, and two common types of incorrect behavior include loops and oscillations
     - Confederations
   - BGP Policy Expression: Filters and Rankings
-  - Exchanging Reachability: *NEXT HOP* Attribute
+  - Exchanging Reachability: `NEXT HOP` Attribute
+    - There are several attributes which come along with an announced prefix in BGP
+      | Route Atribute                    | Description                                                                                                                                         |
+      |-----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+      | NEXT HOP                          | The next router to go to along the route. When exiting an AS this is set to the gateway router, but the field is not modified in iBGP sessions.     |
+      | AS Path                           | List of the ASes (identified by unique 16 bit integers) which span the route advertisement                                                          |
+      | Local Preference                  | At the gateway of a network, this field will be assigned by the eBGP router then forwarded internally, telling routers how to compare/select routes |
+      | Multiple-Exit Discriminator (MED) | Used to break ties between multiple routes through a single AS (assigned externally as a polite "this is what we prefer")                           |
+    - There are many factors deciding which route to take, and `ASPATH` may factor in, or may not (how concerned about latency are we?)
 - Failover and Scalability
+  - Because there can be multiple eBGP sessions across ASes, BGP is _technically_ fault tolerant, though pretty slow to react
+  - When an issue is detected, the withdrawal announcement propagation is damped throughout the AS to prevent a constant back/forth of up and down
+  - The above does mean that there is a delay in state across the AS while the nodes which _do_ know about the failure wait for it to recover before informing their sub-nodes
   - Multi-homing: Promise and Problems
+    - Multi Homing is when a customer uses multiple providers for their traffic
+    - Not super scalable with our modern systems
+    - For this to work, you would need both providers to advertise (roughly the same amount) your IP address with the same prefix width or else you would only see traffic coming through the one with the longest matching prefix
+    - Larger IP prefixes are preferred in this situation as well
   - Convergence Problems
+    - The slow fault detection in BGP is a major problem (can be "super-exponential") and leads essentially to an absence of wide area routes for mission critical applications
 - The following are notes from Shyam Gollakota's lecture on the topic
   - Different ISPs may implement different policies which impacts how traffic is routed (quickest out of my network, minimum use of my resources, etc)
   - Peering is only really set up with specific endpoints in mind - Network B will forward traffic from A only to nodes within Bs network since it is not making money on anything else
