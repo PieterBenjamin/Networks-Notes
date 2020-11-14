@@ -527,8 +527,37 @@ bandwidth/higher speed connections
     - If an ISP A hears an advertisement from a peer (B) for one of As customers, A needs to keep in mind that B could route the traffic to even more ISPs creating latency, so a direct route to the customer is preferred (the rule of thumb is *customer > peer > provider*)
 - Border Gateway Protocol
   - Design Goals
+    1. Scalability
+    2. Policy - each AS needs to be able to decide what to export/import
+    3. Cooperation Under Competitive Circumstances - BGP was designed as a means to handle the transition from a central backbone (NSFNet) to a varying number of commercial entities
   - The Protocol
+    - Pretty well defined
+    - Runs over TCP on an established port (179)
+    - Router R will establish a TCP connection with another router S. Then an `OPEN` message is sent and completed, and both routers share their filtered tables which can take several minutes
+    - The connection then stays open for an amount of time. Because TCP is a reliable connection, updates are only needed when a change happens - such as an annoucement (a new route or tweak to existing) or a withdrawal, to inform that a route is no longer operational
+    - Since TCP does not define a transport-layer "keepalive", BGP does - essentially there is a known timer counting down in which each router guarantees to send a single message (keepalive in place of any substantial messages)
+    - Recall that BGP does not optimize any metric but sends simple messages in the format *IP Prefix: Attributes*
+    - There are several standardized attributes
   - Disseminating Routes within an AS: eBGP and iBGP
+    - eBGP sessions are across ASes between BGP speaking routers while iBGP is between BGP speaking routers inside a single AS
+    - Routers _within_ an AS need to be careful that
+      1) There are no loops in the routes which packets are sent across
+      2) All gateway routers need to be in agreement of everything  (this is implemented by maintaining several iBGP sessions across the network)
+    - The full-mesh configuration of a network might be alright for a smaller ISP, but is not scalable as it requires a quadratic number of iBGP sessions
+    - Two popular alternatives are _route reflectors_ and _confederations_ of BGP routers
+    - Route Reflectors
+      - Basically the selective exporting we discussed above
+      - Has a  notion of money - knows who is a _client_ BGP router
+      - Selects the optimal route for destination prefix and announces based on the following
+        1. Routes learned from a client are announced to everyone
+        2. Routes learned via iBGP from a non client router are only announced to its client routers
+      - In this way, route reflectors basically act as if they are a singular network - and do not want to do any work for other routers
+      - In practice, there are hierarchies of route reflectors which help ensure the best use of all known routes
+    - How routes are updated depends on whether the update traveled through an eBGP or iBGP session
+    - eBGP is typically point-to-point over the same LAN
+    - iBGP may be several hops away, and so the IGP decides how to connect the routers and figure out what the next hop IP address is
+    - Setting up iBGP topology is tricky, and two common types of incorrect behavior include loops and oscillations
+    - Confederations
   - BGP Policy Expression: Filters and Rankings
   - Exchanging Reachability: *NEXT HOP* Attribute
 - Failover and Scalability
