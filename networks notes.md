@@ -586,5 +586,87 @@ bandwidth/higher speed connections
   - ASes will advertise client routes to everyone since they are being paid for that, but keep the peer/provider routes for their clients since they don't make money off of that
   - Peers would not advertise routes through their providers since they wouldn't make money
 # Transport Layer
+- Builds on Network Layer to deliver data across networks - offers guarantees of reliability/quality
+- The transport layer equivalent of frames from the network layer is segments
+  - Segments are contained within packets within frames
+- UDP sends unreliable datagrams (glorified packets) and TCP sends reliable bytestreams
+- TCP
+  - Connections
+  - Single, orderly, reliable delivery of bytes
+  - Arbitrary length
+  - Flow/Congestion controls matches sender to receiver/network
+## UDP
+- Datagrams
+- Potential loss/reorder/duplication
+- Limited size
+- Can send regardless of network and receiver state
+- Applications use ports, typically anything below $1024$ is a well known port which requires administrative privileges (the ports have an expected use) while things above 1024 are typically temporary client ports
+- Voice-over-IP, DNS, RPC, and DHCP are typically done over UDP
+  - Specifically for the voice, you care a lot more about latency than accuracy of order (a few lost packets is fine, but a 5 second delay is worthless)
+  - Can use ML or some extrapolation/interpolation scheme to deal with losses at the Application layer
+- Processes need to maintain buffers for UDP packets because the OS may not schedule them 100% of the time
 
+## TCP
+- Not actually 100% reliable, but pretty dang good
+- Connection Establishment
+  - Sender and Receiver need to be ready to receive, canonical way to think about this is the *Three Way Handshake*
+  - Both sides probe the other with a fresh Initial Sequence Number (ISN)
+  - Synchronize segment sent to server, responds with ACK
+  - Example timeline
+    - Client sends $SYN(x)$
+    - Server responds with $SYN(y)ACK(x+1)$
+    - Client responds with $ACK(y + 1)$, acknowledging everything up to $y + 1$
+  - Random initial $x$ and $y$ are chosen (instead of starting at zero) to deal with potential losses of internet at either end
+- After everything has been sent, there is an orderly way of releasing a connection
+  - There is a symmetric close where both sides are shut down independently
+  - Active sends $FIN(x)$, passive ACKs
+  - Passive sends $FIN(y)$, active ACKs
+  - Each $FIN/ACK$ closes a direction of transfer
+  - Buffers and resources for either side of these values are released upon finish
+  - There are timeout values since loss of connectivity is still an issue
+
+## Sliding Window
+- Where is the *schmeat* of TCP?
+- Remember ARQ is a stop/wait protocol which sends one frame at a time before waiting for an acknowledgment
+  - As we discussed, allowing only a single message to be outstanding is pretty weak sauce for anything but LAN (where only one frame fits)
+- Sliding window allows for a window of outstanding packets where up to $w$ packets are transmitted in a single $RTT$ (Round Trip Time)
+  - $w = bandwidth*RTT = 2 bandwidth*delay$
+- There are many variations which take different parameters into account
+- You have to buffer $w$ segments until they are all acknowledged
+- LFS (last frame sent) - LAR (last ack rec'd) $\leq w$
+- Go-Back-N
+  - Receiver has a one-packet buffer, and a LAS var (last ack sent)
+  - If the receiver's next ACKed seq number is not $LAS + 1$, then you know something went wrong and where to go back
+  - Kind of wasteful because anything following a loss is thrown out
+- Selective Repeat
+  - Receiver passes data *in order* to the application, regardless of what order it was received
+  - Out of order frames are buffered to avoid retransmission
+  - Each unpacked segment has a timer, and retransmits a segment whenever that timer counts down (until the segment has been ACKed)
+  - Need $2w$ seq. numbers to differentiate between outstanding acks and current packets
+## Flow Control
+- Different computers have different capabilities/resources and so they need to be capable of communicating how much data should be "flowing" across the network
+  - Even a powerful computer might not have enough resources to support 100s of processes
+- If the app doesn't call $recv()$ enough, the buffer allocated by the OS might not be able to hold everything, even though ACKs have already been sent back to the transmitter
+- The receiver can send an available window size alongside an ACK, which the transmitter can use to determine a maximum amount of data which can be sent to the other end
+## Timeouts
+
+## TCP
+
+## Congestion in Networks
+
+## Bandwidth Allocation
+
+## Efficiency vs Fairness
+
+## Additive Increase Multiplicative Decrease
+
+## Collection Collapse
+
+## ACK Clocking
+
+## Implementing AIMD
+
+# Application Layer
+
+# Quality of Service
 # Application Layer
