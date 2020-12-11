@@ -626,7 +626,7 @@ bandwidth/higher speed connections
   - There are timeout values since loss of connectivity is still an issue
 
 ## Sliding Window
-- Where is the *schmeat* of TCP?
+- Where is the *meat* of TCP?
 - Remember ARQ is a stop/wait protocol which sends one frame at a time before waiting for an acknowledgment
   - As we discussed, allowing only a single message to be outstanding is pretty weak sauce for anything but LAN (where only one frame fits)
 - Sliding window allows for a window of outstanding packets where up to $w$ packets are transmitted in a single $RTT$ (Round Trip Time)
@@ -644,29 +644,114 @@ bandwidth/higher speed connections
   - Each unpacked segment has a timer, and retransmits a segment whenever that timer counts down (until the segment has been ACKed)
   - Need $2w$ seq. numbers to differentiate between outstanding acks and current packets
 ## Flow Control
-- Different computers have different capabilities/resources and so they need to be capable of communicating how much data should be "flowing" across the network
+- Different computers have different capabilities/resources and so they need to be capable of communicating how much data should be "flowing" across the -network
   - Even a powerful computer might not have enough resources to support 100s of processes
 - If the app doesn't call $recv()$ enough, the buffer allocated by the OS might not be able to hold everything, even though ACKs have already been sent back to the transmitter
 - The receiver can send an available window size alongside an ACK, which the transmitter can use to determine a maximum amount of data which can be sent to the other end
 ## Timeouts
-
+- How do you figure out when something has been lost and you need to retransmit?
+- Set a timer when your segment is being sent
+  - If the value is too long, you'll waste network capacity
+  - Too short, and you'll waste resources
+- For LAN, it is pretty easy to predict worst-case RTT
+- Tricky bit is at scale (*the* internet)
+- There is a ton of variation and unpredictability along the way
+- You don't want to hardcode a timeout bc it will always be either too conservative or too low in some case - instead we *adapt* the timeout  value depending on what you see
+- Adaptive Timeout
+  - TCP keeps an eye on $\mu$ and $\sigma$ to decide how long its timeout value should be
+  - Keep track of the smoothed (estimate) of RTT with $SRTT_{N+1} = 0.9*SRTT_N + 0.1*RTT_{N+1}$
+  - Also note the variance as $Svar_{N+1} = 0.9*Svar_N + 0.1*|RTT_{N+1} - SRTT_{N+1}|$
+  - Keeping track of these fields, with some knowledge of probability, lets the timeout be constantly updated to $SRTT_N + 4* Svar_N$ which will likely cover the upper RTT
 ## TCP
-
+- Reliable Bytestream
+  - Message boundaries not always preserved (smaller packets may end up being buffered) but the actual messages and the orders of them are preserved
+  - Control information, such as ACKS, can piggyback on data segments in reverse direction to create a packet with more information
+  - There are a lot of header values which go into TCP headers, which are stacked on top of other headers in a packet, which means sending low amounts of data very long distances is often not useful
+- Sliding Window - Receiver
+  - Can specify the next in-order packet received, as well as (up to) three ranges of already received packets which were out of order
+- Sliding Window - Sender
+  - Try to reason about loss without using timeouts (which aren't great to wait for)
+  - Attempts to resend a packet before a timeout ever happens
+  - EG, if the frames 101-199 are sitting on a timeout, but the sender has received multiple (three in the example) ACKs for 100 and ranges above 200, then it can reasonably infer that 101-199 was lost
+- In the 1980s, early TCP had a fixed size sliding window
+- Congestion collapse (described below) was a serious issue as  the ARPANET grew - links would be busy but transfer rates were abysmal
+- Van Jacobson is credited with saving the internet by introducing practical congestion control
+  - Added AIMD principles
+  - TCP Tahoe ('88)/Reno ('90) were the two main names of what he created
+- He proposed fixing timeout values and introducing congestion windows to limit queues/losses
+- the cwnd (congestion window) is adapted using packet loss as the main parameter
 ## Congestion in Networks
-
-## Bandwidth Allocation
-
-## Efficiency vs Fairness
-
-## Additive Increase Multiplicative Decrease
-
-## Collection Collapse
-
+- People and computers can generate varying amounts of traffic
+- Routers have input/output queues which help absorb bursts, but these can fill up when there are a lot of requests coming through the network
+- When a lot of routers are seeing the effects of congestion, they will increase their timeouts - which will have the impact of a "congestion collapse" where there is almost no traffic (which will cause senders to see increased performance and bring their timeouts back down)
+- You want to push a network just to the point of congestion but not crossing that threshold to get maximum performance
+## Efficiency vs Fairness (Bandwidth Allocation)
+- Can't have them both
+- Sometimes a fair network is not efficient and an efficient network is not fair
+- Different links have different bottlenecks which will impact the performance of the network
+- The policy people end up using is Max-Min fairness
+  - You want to maximize the minimum amount of flow across links
+  - Flows which are bottlenecked on one link get an equal share of the link
+  - Algorithm is as follows  
+    1. Start with all flows set at 0
+    2. Increase flows (basically set a single link to the max capacity of the flow) until there is a new bottleneck in the network
+    3. Fix the rate of all flows which are bottlenecked
+    4. Go back to step 2 if there are any unfixed flows
+  - This doesn't really work in practice because you don't have a singular graph for the whole network
+- You can also adapt flows over time - as specific flows activate/deactivate, changes in flow allocation can share the resources dynamically
+## Additive Increase Multiplicative Decrease (AIMD)
+- Solution to decentralized flow allocation
+- Network layer provides feedback, transport layer makes adjustments
+- Bandwidth usage is rarely on 100% of the time - internet browsing is more punctuated and this factors into allocation
+- When the network is not congested, nodes iteratively increase their rate
+  - but when the network is bogged down, nodes dramatically decrease their rates
+- Imagining a router with two nodes, the inequality $x + y \leq 1$ describes the area where the network is capable of functioning
+- the line $y = x$ is maximally fair
+- Moving the allocation $(x, y)$ to $(x + c, y+c)$ is parallel to the maximally fair allocation
+- Moving along $(x, y)$ to $(\frac{x}{c}, \frac{y}{c})$ goes toward the origin
+- Alternating between these will zigzag the allocations to the maximally fair line
+  - There's a useful diagram in the transport layer slides for visualizing this
+- Guaranteed to converge to a efficient/fair allocation
+- Only needs binary feedback from the network - are we congested or not?
+- There are actually more complex signals which can inform routers/senders about the details of what's going on
 ## ACK Clocking
-
+- The rate at which ACKs come back give you a sense of the most congested link in your network  
+- You can think of ACKs as clocking data segments because as they come in, the window is advanced by one and a new segment is able to be introduced
+  - If you release the first window as a burst of segments, the rate at which the acks come back will be (at most) as fast as the bottleneck in the flow
+  - Then as the window is advanced, new segments are released into the network only as fast as the link can handle, which means there will not be excess packets floating about which we can reasonably infer were released faster than the bottleneck could handle
+  - In other words, ACKs will come back at the max level the network can handle, and releasing segments based on this "clock" prevents the network from being overburdened
 ## Implementing AIMD
-
+- There is a "slow start" which is the additive increase portion
+- We want to jump right to the ideal rate ($cwnd_{ideal}$) but there is a lot of variance so we need to pick a strategy carefully
+- Instead of "additively increasing" the condition window size, we can grow it exponentially by doubling it every $RTT$
+  - Fixed window size can get it right if you just guess correctly every time, but that's easy unless you're an oracle
+  - The other issue to keep in mind with immediately large (even correct!) window sizes is that you will introduce a _burst_ of packets into the network instead of iteratively one at a time - this is not great for the poor queues who now have to handle all your business
+- This exponential growth is basically guaranteed to go over and introduce loss
+  - This is when you suspect your window is too large - swap to additive increase! After dropping your window size back down to the last size _without_ loss
+  - This enables more fine tune (smaller step) adjustments since you now know you're close to the ideal
+- TCP Tahoe Implementation
+  - Slow start phase only increments $cwnd$ by one per ACK
+  - Additive increase phases increments $cwnd$ by $\frac{1}{cwnd}$ packets per ACK which adds roughly 1 packet per $RTT$
+  - The slow start threshold (before swapping to AI) is initially infinity, but set to $\frac{cwnd}{2}$ after a loss
+- If you hit a timeout value, you will reset and set $cwnd$ to 1 and run the slow start phase until hitting your slow start threshold previously discovered
+- The reason for going all the way back to 1 (instead of the threshold) is that you've lost your ACK clock and need to reset it
+- This is not ideal - remember that we have some hints about data which arrived out of order
+- Fast retransmit
+  - Treat three duplicate ACKs as a loss, retransmit the lost range (hopefully before the timeout occurs!)
+  - In the example, $[1, 13]$ and $[15, 20]$ was received but $14$ was lost, so you observe the following behavior:
+  - $ACK_{10}, ACK_{11}, ACK_{12}, ACK_{13}, ACK_{13}, ACK_{13}, ACK_{13}$
+  - At this point, you've seen three (duplicate) $ACK_{13}$ so you retransmit packet 13, and upon reception, you will receive $ACK_{20}$ because those packets had already been seen!
+  - This enables you to fast-forward six packets to packet 21, which makes everyone happy :smile:
+- TCP Tahoe is the one which goes all the way back to 0 whenever a loss occurs, which is not ideal
+- TCP Reno uses fast retransmit to detect losses early without having to go all the way back to square one
+- We have not (yet) discussed the multiplicative decrease part of the backoff which prevents further congestion
+- Each subsequent ACK lets us know a new segment has arrived
+- SACK sends ACK ranges so that senders can accurately retransmit without any guessing
+## Explicit Congestion Notification
+- Routers detect onset of congestion by looking at queue sizes
+- Some packets are then marked as "congested" and the receiver will send a *special* kind of loss which acts a flag to start multiplicative decrease without actually having a loss
+- Downside is a lot of routers need to have new fancy hardware/software to
+- Will be adopted in years to come, already works at scale in data centers 
 # Application Layer
 
 # Quality of Service
-# Application Layer
