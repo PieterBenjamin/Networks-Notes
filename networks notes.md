@@ -751,7 +751,205 @@ bandwidth/higher speed connections
 - Routers detect onset of congestion by looking at queue sizes
 - Some packets are then marked as "congested" and the receiver will send a *special* kind of loss which acts a flag to start multiplicative decrease without actually having a loss
 - Downside is a lot of routers need to have new fancy hardware/software to
-- Will be adopted in years to come, already works at scale in data centers 
+- Will be adopted in years to come, already works at scale in data centers
 # Application Layer
-
+- Just need to use the transport layer to be considered at the application layer
+- Run at user level (OS handles transport)
+- HTTP headers are added on top of TCP headers
+- Things like DNS/Skype use UDP, while the web is usually TCP
+  - DNS messages are pretty short and TCP was overkill, which is why UDP is used
+- Cisco has some predictions about the future of the internet
+  - video, wireless, and mobile are the biggest growing areas
+- 8.7 Mbps was the average mobile speed across the world in 2017
+- Expected to triple by 2022
+## Domain Name System
+- Human readable host name
+- Routing operates at IP level, need to be able to translate names into numbers
+- Resolution/lookup is the process of figuring out the IP address
+- During DHCP, your machine receives the address of the local DNS server
+  - Such servers can be as simple as a proxy for Google DNS servers
+- DNS namespaces are split up into hierarchical name groups
+- Run by ICANN (Internet Corp. for Assigned Names and Numbers)
+- There are 22+ generic top level domains (such as .com, .edu, .aero, etc) with different usage policies
+- There are ~250 country code TLDs
+  - The country Tuvalu got "tv" and makes a lot of money by leasing it out to people who want to use it
+- Breakdown of reaching robot.cs.washington.edu (if you don't already know it)
+  1. query to local DNS server
+  2. query to root name server
+  3. query to edu name server
+  4. uw server
+  5. uwcs
+  6. desired IP address!
+- Iterative vs. Recursive queries
+  - The server can either answer the entire query at once (recursive) or just tell the client where to look next (iterative)
+  - The recursive approach has the advantage of caching results, while the iterative scales fairly well (and is obviously much simpler)
+  - Caching results is much faster, and things can have time to live tags which decide how long they hang around in the cache
+- People attack name servers all the time - there are 13 server names which run the root nameservers
+- Spoofing a DNS server means you can literally represent anything as the internet
+  - For example, your could redirect someone's request to their bank website to your server and just steal their info
+- DNS over HTTPS is a popular way to get more security  
+## Hyper Text Transfer Protocol (HTTP)
+- Very popular application-level protocol
+- Provides algorithms and mechanisms for servers to serve web pages
+- Tim Berners-Lee
+  - Considered inventor of the web
+  - Developed W3C
+  - Developed Web at CERN
+  - Important to remember that lots of people contributed to the web alongside him
+- Request/response system which runs on TCP (typically port 80)
+- protocol[http://]server[en.wikipedia.org]page[/wiki/vegemite]
+- Steps
+  1. Resolve server name to IP address
+  2. Setup TCP connection to the server
+  3. Send HTTP request for the page
+     - Execute/fetch embedded sources/render
+  4. Clean up idle TCP connections
+- Can have static or dynamic web pages
+  - Faculty web pages typically static
+- Dynamic pages require your client to execute/run something (typically javascript/php)
+- Browsers are pretty great wrappers for HTTP, but you can still get page contents returned to you by using `telnet` and inputting HTTP requests
+- Page Load Time (PLT)
+  - People care about this a lot
+  - Time between clicking and seeing the page
+  - Human psychology (will you spend money if the page loads faster?) plays a large motivation role since ecommerce sites want to make money-
+  - You can trick the user into thinking the whole page loaded while things out of sight are still loading
+  - Impacted by a lot of factors (obviously) which may not be in the servers control
+- Early performance
+  - HTTP/1.0 used a single TCP connection to fetch a web resource - easy to build but pretty slow
+  - If a webpage has a lot of small embedded resources, the PLT goes up because you are doing things sequentially and are not utilizing the network resources ideally
+- You can reduce PLT with several tricks such as reducing initial page size, caching, or parallelism
+- Originally there was one request per connection, then there were sequential requests per connection, and now we have pipeline requests per connection (persistent connections)
+  - Instead of waiting for a request to finish, send another over the same connection
+  - This skips over the slow start phase after the initial request to setup the TCP connection
+- HTTP caching and Proxies
+  - Web browsers can implement caching to optimize performance
+  - TTL tags can help decide when to remove things from a cache
+  - Can try to guess whether someone has updated their page (Google does this to optimize search times)
+  - Process looks like this
+    1. Check cache to see if there is a recent web page
+    2. If not, send a conditional GET to the server to see if there is anything new
+    3. Server responds with not modified or the new page
+- Can add a proxy between a pool of users and external networks which can optimize caches by preserving frequently accessed web pages (across multiple clients in the organization) as well as making some security offers
+## Content Delivery Networks
+- Host the content closer to the client
+- As the web grew in the 90s, traffic grew very large and people started seeing focused traffic (e.g. to the New York Times) which was creating congestion and a mediocre experience for everyone
+- Motivating idea: place popular content near clients (not a cache but a replica)
+- Basically, when multiple users close to one another request a similar resource, the host will forward a single copy to a server closer to them which will then branch out and serve each client
+  - Note: the idea here is to not send the same content along the same path for different clients by delaying the point at which the requests fork towards different clients
+  - This is not quite caching, though caching can definitely be used to optimize performance here
+- DNS servers will give different responses to clients depending on which CDN the client is closest to
+- Akamai pioneered a business model where site replicas are placed close to ISPs which improves user experience *and* ISP bandwidth usage
 # Quality of Service
+- What we've been discussing is best effort
+- Most routers are FIFO
+- All of our content has been focused on maximizing the quality of delivery without any guarantees of bandwidth, delays, or loss
+- Would be nice if people could pay extra money to get guarantees
+  - Videos or real time holograms require huge amounts of bandwidth, and small errors are noticeable
+- Example: two different applications (BitTorrent and the Web) are accessing the internet
+  - The home link is the bottleneck in this situation
+  - You will basically cause a DDoS for your own home
+  - Recognize that BitTorrent can run slowly without the user getting annoyed, but delays while browsing the internet are very frustrating
+  - ISP routers can look at application layer headers and decide how to prioritize traffic - allocating more resources to latency sensitive applications will make users happy
+- Important to consider the bandwidth/delay/jitter/loss acceptable for your client
+  - jitter is variation in delay - mainly important in real time applications like telephony or video conferencing
+## Interactive, Real-Time Media
+- Network delay is variable in nature (there is latency/propagation which is fixed, but there are additional delays at the network layer)
+  - Need to be able to deal with both types of delay
+- A solution is to add a playout buffer where media is placed until it is time for consumption
+  - If more delay is tolerable you will have a larger buffer and less losses
+  - The opposite (low delay) requires smaller buffers and lower losses
+- Main takeaway here is that pretty much everything can be buffered and have some delay *except* people interacting with other people
+  - Side note -  Bell Labs found this out decades ago!
+- Can communicate with host (flow control) to prevent buffering the entire file (which would be wasting bandwidth)
+  - Essentially have a low/high "watermark" which determines when you ask the host for more content instead of perpetually using bandwidth
+- Streaming is usually done over TCP for a variety of reasons
+- Client first uses HTTP to get a meta file to find out where everything is
+- Meta file is handed off to media player in web browser
+- Browser then uses Real Time Streaming Protocol
+## (Fair) Queueing
+- Routers can use different queues for different applications to enable the QoS discussed above
+- Some flows are not well behaved and can be overly aggressive in sending their packets - which means FIFO queues are going to be heavily biased in whose requests they are serving
+  - Can solve this by going round robin and pulling a packet from each queue instead of letting a single flow abuse the system
+- Don't want to treat packets of massively different length as equals
+- For the $j^{th}$ packet of flow $F$, keep track of
+  1. $Arrive(j)_F$: arrival time
+  2. $Length(j)_F$: length
+  3. $Finish(j)_F$: $max(Arrive(j)_F, Finish(j-1)_F) + Length(j)_F$
+- The above lets you approximate the time it takes to send a packet, and you can then order which packets to send by choosing the lower finish times first
+  - This enables a lot of small packets to sneak in before a large packet
+- You don't want to be totally blind to who is sending packets since money is a motivating factor
+  - Update the third parameter to $\frac{max(Arrive(j)_F, Finish(j-1)_F) + Length(j)_F}{Weight_F}$
+  - Enables you to prioritize/protect flows
+  - Difficult to implement at high speed at scale with concurrent flows
+- Net neutrality becomes a concern pretty quickly here - who decides the weights?
+- Comcast claimed Netflix was taking too much resources and started slowing them down
+## Security
+- Broad topic which warrants an entire class
+- We'll be abstracting math and discussing the big picture
+- "Security" is a very broad term - you need to specify your threat model and what their abilities are
+- Four main models
+  1. Eavesdropper: Can intercept messages and read them
+  2. Intruder: A compromised host which can tamper with contents of message
+  3. Impersonator: Tricks people into giving information  
+  4. Extortionist: Holds something hostage (like DDoS) in exchange
+- The whole system is only as strong as the weakest link - and this absolutely includes humans!
+- Advancements (802.11) in WiFi made eavesdropping much harder
+- Cryptography is encrypting things, cryptoanalysis is trying to break it
+- Emphasis is on computational feasibility with classic machines
+  - Quantum computers may change this in at least 10-15 years (Professor Gollakota's opinion)
+- Since TCP was released during the days of the ARPANET, there was much more trust since the threat model was so drastically different
+- Encryption is a reversible mapping (if you have the right key) which prevents just anyone from reading private information
+  - Everyone knows the algorithm, the hard part is keeping the keys secret
+  - Symmetric key encryption is when both parties use the same key
+  - Public key encryption uses two keys - and only one can "undo" the encrypting
+  - The public key is well known but only the owner has the private key
+  - Key distribution is a big problem
+  - Need to have trusted directory services and certificates (which are verified/set externally) which enables them to verify when someone claims to be someone
+  -The symmetric key advantage is that it's pretty fast, but much harder to get the key to each side
+  - Typically use public/private key to send small messages (like a symmetric key) and then larger messages over symmetric encryption
+  - The key used above is called a session key and is generated for short-term use
+- You also want to be able to verify if someone has intercepted/tampered with a message before the receiver got it
+  - Randomly flipping bits would cause the message to come out of decryption as garbage
+  - Could be more precise and completely change the message
+  - Solution is MAC (Message Authentication Code) which is a small token appended to a message which enables validation
+  - This digital signature can be encrypted with a senders private key - then anyone can read it and verify who sent it, but *only* the sender can generate it
+  - Instead of signing the whole message, you create a hash of the entire thing and then apply the signature to the hash (which is much faster)
+- Need to add timestamps so that an eavesdropper doesn't resend the same message (which could throw stuff out of wack)
+
+# Miscellaneous
+
+## Virtual Private Networks
+- Closed network running on internet
+- Any host can send packets to you - and you may not want total exposure
+- Companies may want to separate themselves from the internet
+  - Very expensive to actually physically separate links from outsiders
+- Idea: use the internet as a virtual link
+  - We can use tunneling to achieve this
+  - Hosts in private network communicate normally and to cross a virtual link (tunnel) you encapsulate packets - putting one packet inside another
+  - This obviously isn't 100% secure - need cryptographic protections on top of the tunneling
+- IPSEC (IP Security) has been slowly gaining traction
+    - Attempts to secure IP layer
+    - Lots of additional headers/timer values which protect the packet
+- The goal of VPNs is to build networks on top of the internet, but rely heavily on security
+## Distributed Denial of Service Attacks (DDoS)
+- Common attack on networks - since things are so distributed, you can't really take down a single network by just attacking one server
+- If you have a ton of devices, you can flood a host with a bunch of packets and slow everything down
+- Not really any great solutions
+- By definition, the goal of these attacks is to prevent a system from being available to its users
+- Lots of strategies - could open a TCP connection and never follow up (wasting resources on the host)
+- Botnets provide multiple attackers in the form of compromised hosts which send a bunch of traffic to a victim (slowing down traffic in the area)
+- You can pretend to be just about anyone, and if you trick a victim you can get their responses to go just about anywhere
+  - Spoofing means you don't even need an army of computers for DDoS, you can just generate requests
+- A best practice is Ingress Filtering - detect lies by validating IPs at the boundary of the network and drop baloney
+  - Puts burden on ISP to guarantee good behavior
+  - They can maintain good/bad actor lists - which is a lot of power
+  - Can get a little funky and whole countries can get blacklisted
+- Defenses
+  - Increase network capacity around server
+  - Use CDN for high peak capacity
+  - Filter out attack traffic within the network
+    - A packet says "I am IP X", and if you know it came somewhere which doesn't support IP X, then you can reasonably deny it
+- There is a ton of money involved in these attacks
+- Ultimately this is a problem with humans not computers, and there are a *lot* of ways to exploit unsafe human behavior  
+
+![image](https://static.wikia.nocookie.net/warner-bros-entertainment/images/d/d9/That%27s_all_Folks_tagline.jpg/revision/latest/scale-to-width-down/1000?cb=20190918210403)
